@@ -58,13 +58,22 @@ void *receiver_thread_func(void *arg) {
 /*
  * Worker Thread:
  * Pops telemetry data from the Ring Buffer, applies a moving average 
- * DSP filter, and prints the cleaned signal to the terminal.
+ * DSP filter, prints the signal, and logs it to a CSV file.
  */
 void *worker_thread_func(void *arg) {
     // Suppress unused parameter warning
     (void)arg; 
 
     printf("[Worker]   Thread started. Waiting for data...\n");
+
+    // Open CSV log file for writing
+    FILE *log_file = fopen("telemetry_log.csv", "w");
+    if (log_file != NULL) {
+        fprintf(log_file, "Timestamp,Raw,Filtered\n");
+        fflush(log_file); // Ensure header is written immediately
+    } else {
+        fprintf(stderr, "[Worker] Warning: Could not open telemetry_log.csv for writing.\n");
+    }
 
     while (1) {
         /*
@@ -79,6 +88,19 @@ void *worker_thread_func(void *arg) {
         // Print the original vs. filtered results
         printf("[DSP] TS: %13lu | Raw: %7.3f | Filtered: %7.3f\n", 
                data.timestamp, data.value, filtered_value);
+
+        // Log the data to the CSV file
+        if (log_file != NULL) {
+            fprintf(log_file, "%lu,%.6f,%.6f\n", data.timestamp, data.value, filtered_value);
+            // Flush periodically to avoid data loss if the server is stopped abruptly (e.g. Ctrl+C)
+            fflush(log_file); 
+        }
+    }
+
+    // In this infinite loop design, this is unreachable. 
+    // Included for completeness/good practice.
+    if (log_file != NULL) {
+        fclose(log_file);
     }
 
     return NULL;
